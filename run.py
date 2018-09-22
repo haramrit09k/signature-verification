@@ -23,11 +23,14 @@ forged_image_paths = "data/forged"
 genuine_image_features = [[] for x in range(12)]
 forged_image_features = [[] for x in range(12)]
 
+lenfor=0
+
 for name in genuine_image_filenames:
     signature_id = int(name.split('_')[0][-3:])
     genuine_image_features[signature_id - 1].append({"name": name})
 
 for name in forged_image_filenames:
+    lenfor+=1
     signature_id = int(name.split('_')[0][-3:])
     forged_image_features[signature_id - 1].append({"name": name})
 
@@ -35,6 +38,7 @@ for name in forged_image_filenames:
 def preprocess_image(path, display=False):
     raw_image = cv2.imread(path)
     bw_image = cv2.cvtColor(raw_image, cv2.COLOR_BGR2GRAY)
+    cv2.imshow("Initial", bw_image)
     bw_image = 255 - bw_image
 
     if display:
@@ -113,15 +117,15 @@ wrong = 0
 
 im_contour_features = []
 
-for i in range(12):
+for i in range(1):
     des_list = []
     for im in genuine_image_features[i]:
         image_path = genuine_image_paths + "/" + im['name']
-        preprocessed_image = preprocess_image(image_path)
+        preprocessed_image = preprocess_image(image_path, display=True)
         hash = imagehash.phash(Image.open(image_path))
 
         aspect_ratio, bounding_rect_area, convex_hull_area, contours_area = \
-            get_contour_features(preprocessed_image.copy(), display=False)
+            get_contour_features(preprocessed_image.copy(), display=True)
 
         hash = int(str(hash), 16)
         im['hash'] = hash
@@ -131,7 +135,7 @@ for i in range(12):
 
         im_contour_features.append([hash, aspect_ratio, convex_hull_area / bounding_rect_area, contours_area / bounding_rect_area])
 
-        des_list.append(sift(preprocessed_image, image_path))
+        des_list.append(sift(preprocessed_image, image_path, display=True))
 
 
     for im in forged_image_features[i]:
@@ -140,7 +144,7 @@ for i in range(12):
         hash = imagehash.phash(Image.open(image_path))
 
         aspect_ratio, bounding_rect_area, convex_hull_area, contours_area = \
-            get_contour_features(preprocessed_image.copy(), display=False)
+            get_contour_features(preprocessed_image.copy(), display=True)
 
         hash = int(str(hash), 16)
         im['hash'] = hash
@@ -149,13 +153,15 @@ for i in range(12):
         im['contour_area/bounding_area'] = contours_area / bounding_rect_area
 
         im_contour_features.append([hash, aspect_ratio, convex_hull_area / bounding_rect_area, contours_area / bounding_rect_area])
+        
+        print(sift(preprocessed_image, image_path))
 
         des_list.append(sift(preprocessed_image, image_path))
 
     descriptors = des_list[0][1]
     for image_path, descriptor in des_list[1:]:
         descriptors = np.vstack((descriptors, descriptor))
-    k = 220
+    k = 200
     voc, variance = kmeans(descriptors, k, 1)
 
     # Calculate the histogram of features
@@ -175,7 +181,7 @@ for i in range(12):
     stdSlr = StandardScaler().fit(im_features)
     im_features = stdSlr.transform(im_features)
 
-    train_genuine_features, test_genuine_features = im_features[0:3], im_features[3:5]
+    train_genuine_features, test_genuine_features = im_features[0:3], im_features[4:8]
 
     train_forged_features, test_forged_features = im_features[5:8], im_features[8:10]
 
@@ -192,19 +198,34 @@ for i in range(12):
     #print("2" + str(clf.predict(test_genuine_features)))
     genuine_res = clf.predict(test_genuine_features)
 
+    print(type(genuine_res))
+    # print(genuine_res) 
+
     for res in genuine_res:
         if int(res) == 2:
             cor += 1
         else:
             wrong += 1
-
+    
+    print("cor is ", cor)
+    print("wrong is ", wrong)
+    
     #print("1" + str(clf.predict(test_forged_features)))
-    forged_res = clf.predict(test_forged_features)
 
-    for res in forged_res:
-        if int(res) == 1:
-            cor += 1
-        else:
-            wrong += 1
 
-print(float(cor)/(cor+wrong))
+    # forged_res = clf.predict(test_forged_features)
+
+    # for res in forged_res:
+    #     if int(res) == 1:
+    #         cor += 1
+    #     else:
+    #         wrong += 1
+
+# match = float((cor)/(cor+wrong))
+# print(match)
+# if match >= 0.90:
+#     print("MATCHED")
+# else:
+#     print("The signature seems forged, UNMATCHED")
+
+print(genuine_res)
